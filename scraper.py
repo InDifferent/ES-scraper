@@ -432,7 +432,7 @@ def autoChooseBestResult(nodes,t):
 
 def getPlatformNames(_platforms):
     platforms = []
-    for (i, platform) in enumerate(_platforms.split(',')):
+    for (i, platform) in enumerate(ES_systems)):
         if gamesdb_platforms.get(platform, None) is not None: platforms.append(gamesdb_platforms[platform])
     return platforms
 
