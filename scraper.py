@@ -183,41 +183,37 @@ def getGameInfo(file, platforms, gamelists):
                                headers={'User-Agent' : "RetroPie Scraper Browser"})
         return ET.parse(urllib2.urlopen(gamelist)).getroot()
         
+    def cleanString(title):
+        cleanTitle = re.sub('[^a-zA-Z0-9 ]', '', title)
+        return re.sub(' +', ' ', cleanTitle)
+        
     def getTitleOptions(title, results):
         options = []
-        ch_exclude = set(',:&!')
-        common_words = ['in','of','the','and','to','a','-']
+        common_words = ['in','of','the','and','to','a']
 
-        scrubbed_title = stripRegionStrings(title)
-        scrubbed_title = ''.join(ch for ch in scrubbed_title if ch not in ch_exclude)
-
+        scrubbed_title = cleanString(stripRegionStrings(title))
         word_list = filter(lambda x: x.lower() not in common_words, scrubbed_title.split() )
 
         for i,v in enumerate(results):
-            check_title = getTitle(v)
-            check_title_2 = check_title.replace('-', ' ')
-            scrubbed_check = ''.join(ch for ch in check_title if ch not in ch_exclude)
-
-            check_word_list = filter(lambda x: x.lower() not in common_words \
-                                        and len(x) > 2, scrubbed_check.split() )
+            check_title = cleanString(getTitle(v))
+            check_word_list = filter(lambda x: x.lower() not in common_words, check_title.split() )
 
             # Generate rank based on how many substring matches occurred.
             game_rank = 0
 
             # - Give perfect (100) rank to titles that match exactly
-            if title.lower() == check_title.lower() \
-                    or title.lower() == check_title.replace('-', '').lower() \
-                    or title.lower() == check_title_2.lower():
+            if scrubbed_title.lower() == check_title.lower():
                 game_rank = 100
             # - Give high (99) rank to title if same words appear in result
             #   (e.g.  "The Legend of Zelda" --> "Legend of Zelda, The"
             elif sorted(word_list) == sorted(check_word_list):
                 game_rank = 99
             # - Give high (95) rank to titles that appear entirely in results
-            elif title.lower() in check_title.lower() \
-                    or title.lower() in check_title.replace('-', '').lower() \
-                    or title.lower() in check_title_2.lower():
+            elif scrubbed_title.lower() in check_title.lower():
                 game_rank = 95
+            # - Give high (90) rank to results that appear entirely in titles
+            elif check_title.lower() in scrubbed_title.lower():
+                game_rank = 90				
             # - Otherwise, rank title by number of occurrences of words
             else:
                 #print "%s" % '|'.join(word_list)
