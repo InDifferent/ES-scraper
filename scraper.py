@@ -15,6 +15,7 @@ from xml.etree import ElementTree as ET
 from xml.etree.ElementTree import Element, SubElement
 import zlib
 import glob
+import time
 
 SCUMMVM = False
 arcaderoms = {}
@@ -220,7 +221,7 @@ def getGameInfo(file, platforms, gamelists):
 
     for (i, platform) in enumerate(platforms):
         # Retrieve full game data using ID
-        if platform == "Arcade" : title = getRealArcadeTitle(title)	
+        if platform == "Arcade" : title = getRealArcadeTitle(title)    
         results = gamelists[i].findall('Game')
 
         # Search for matching title options
@@ -322,8 +323,17 @@ def getImage(nodes):
     return getText(nodes.find("Images/boxart[@side='front']"))
 
 def getRelDate(nodes):
-    return getText(nodes.find("ReleaseDate"))
-
+    rd = getText(nodes.find("ReleaseDate"))
+    if rd is not None:
+        if len(rd) == 10:
+            return time.strftime('%Y%m%dT%H%M%S', time.strptime(rd, '%m/%d/%Y'))
+        elif len(d) == 4:
+            return time.strftime('%Y%m%dT%H%M%S', time.strptime('01/01/' + rd, '%m/%d/%Y'))
+        else:
+            return None
+    else:
+        return None    
+    
 def getPublisher(nodes):
     return getText(nodes.find("Publisher"))
 
@@ -498,37 +508,28 @@ def scanFiles(SystemInfo):
                     else:
                         result = data
 
-                    str_id = getId(result)
                     str_title = getTitle(result)
                     str_des = getDescription(result)
                     str_img = getImage(result)
+                    str_rating = getRating(result)
                     str_rd = getRelDate(result)
-                    str_pub = getPublisher(result)
                     str_dev = getDeveloper(result)
+                    str_pub = getPublisher(result)
                     str_rating = getRating(result)
                     str_players = getPlayers(result)
                     lst_genres = getGenres(result)
 
                     if str_title is not None:
                         game = SubElement(gamelist, 'game')
-                        id = SubElement(game, 'id')
                         path = SubElement(game, 'path')
                         name = SubElement(game, 'name')
-                        desc = SubElement(game, 'desc')
-                        image = SubElement(game, 'image')
-                        releasedate = SubElement(game, 'releasedate')
-                        publisher = SubElement(game, 'publisher')
-                        developer = SubElement(game, 'developer')
-                        rating = SubElement(game, 'rating')
-                        players = SubElement(game, 'players')
-                        genres = SubElement(game, 'genres')
 
-                        id.text = str_id
                         path.text = filepath
                         name.text = str_title
                         print "Game Found: %s [%s]" % (str_title, getGamePlatform(result))
 
                     if str_des is not None:
+                        desc = SubElement(game, 'desc')                    
                         desc.text = str_des
 
                     if str_img is not None and args.noimg is False:
@@ -543,7 +544,6 @@ def scanFiles(SystemInfo):
 
                         downloadBoxart(str_img,imgpath)
                         imgpath = fixExtension(imgpath)
-                        image.text = imgpath
 
                         if args.w or args.t:
                             try:
@@ -551,29 +551,37 @@ def scanFiles(SystemInfo):
                             except Exception as e:
                                 print "Image resize error"
                                 print str(e)
-
+                        
+                        image = SubElement(game, 'image')                        
+                        image.text = imgpath
+                        
                     if str_rd is not None:
+                        releasedate = SubElement(game, 'releasedate')                    
                         releasedate.text = str_rd
 
+                    if str_dev is not None:
+                        developer = SubElement(game, 'developer')                    
+                        developer.text = str_dev
+                        
                     if str_pub is not None:
+                        publisher = SubElement(game, 'publisher')                    
                         publisher.text = str_pub
 
-                    if str_dev is not None:
-                        developer.text = str_dev
-
+                    rating = SubElement(game, 'rating')
                     if str_rating is not None:
-                        flt_rating = float(str_rating)
-                        rating.text = "%.6f" % flt_rating
+                        flt_rating = float(str_rating) / 10
+                        rating.text = "%.2f" % flt_rating
                     else:
-                        rating.text = "0.000000"
+                        rating.text = "0.0"
 
                     if str_players is not None:
+                        players = SubElement(game, 'players')
                         players.text = str_players
 
                     if lst_genres is not None:
-                        for genre in lst_genres:
-                            newgenre = SubElement(genres, 'genre')
-                            newgenre.text = genre.strip()
+                        genre = SubElement(game, 'genre')                    
+                        genre.text = lst_genres[0].strip()
+
                 except KeyboardInterrupt:
                     print "Ctrl+C detected. Closing work now..."
                     break
