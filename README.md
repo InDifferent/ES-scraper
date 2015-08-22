@@ -56,11 +56,11 @@ $ python scraper.py -pisize -l
 ```
 
 same as above, but the script will only use the first result if it is a perfect match
-
 ```
 $ python scraper.py -pisize -l -minscore 100
 ```
 
+same as above, but the script will prompt each ROM
 ```
 $ python scraper.py -pisize
 ```
