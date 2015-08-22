@@ -55,7 +55,12 @@ on RetroPie, this is the easiest, fastest way to run the script
 $ python scraper.py -pisize -l
 ```
 
-same as above, but the script will prompt each ROM
+same as above, but the script will only use the first result if it is a perfect match
+
+```
+$ python scraper.py -pisize -l -minscore 100
+```
+
 ```
 $ python scraper.py -pisize
 ```
