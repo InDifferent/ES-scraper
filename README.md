@@ -17,7 +17,9 @@ optional arguments:
   -v          verbose output
   -f          force re-scraping (ignores and overwrites the current gamelist)
   -p          partial scraping (per console)
-  -l          i'm feeling lucky (use first result if the score is greater than 1)
+  -l          i'm feeling lucky (use first result if the score is greater than minscore)
+  -minscore   defines the minimum score used by -l
+              - defaults to 1
   -name       the "name" from es_settings.cfg - this sets the path for the gamelist
               - must be used with platform option
               (ex: mame)

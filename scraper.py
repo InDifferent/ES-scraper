@@ -29,6 +29,7 @@ parser.add_argument("-v", help="verbose output", action='store_true')
 parser.add_argument("-f", help="force re-scraping (ignores and overwrites the current gamelist)", action='store_true')
 parser.add_argument("-p", help="partial scraping (per console)", action='store_true')
 parser.add_argument("-l", help="i'm feeling lucky (use first result)", action='store_true')
+parser.add_argument("-minscore", metavar="score", help="defines the minimum score used by -l (defaults to 1)", type=int)
 parser.add_argument("-name", help="manually specify a name, ignore es_settings.cfg (must be used with -platform)", type=str)
 parser.add_argument("-rompath", help="manually specify a path, ignore es_settings.cfg (used with -name and -platform)", type=str)
 parser.add_argument("-platform", help="manually specify a platform for ROMs in 'rompath', ignore es_settings.cfg (must be used with -name", type=str)
@@ -44,6 +45,7 @@ GAMESLIST_URL = GAMESDB_BASE + "GetGamesList.php"
 
 DEFAULT_WIDTH  = 375
 DEFAULT_HEIGHT = 350
+DEFAULT_SCORE  = 1
 
 gamesdb_platforms = {}
 
@@ -213,7 +215,7 @@ def getGameInfo(file, platforms, gamelists):
                 game_rank = 95
             # - Give high (90) rank to results that appear entirely in titles
             elif check_title.lower() in scrubbed_title.lower():
-                game_rank = 90				
+                game_rank = 90                
             # - Otherwise, rank title by number of occurrences of words
             else:
                 #print "%s" % '|'.join(word_list)
@@ -243,9 +245,10 @@ def getGameInfo(file, platforms, gamelists):
         # * I'm feeling lucky - select first result
         if args.l:
             if not options:     # If no options available, return None
+                print "no matches found"
                 return None
-            if options[0][0] == 1:
-                print "match not high enough"
+            if options[0][0] < args.minscore:
+                print "best score (%s) is below the minmium (%s)" % (options[0][0], args.minscore)
                 return None
             else:
                 result = options[0]
@@ -663,7 +666,11 @@ else:
 if args.noimg:
     print "Boxart downloading disabled."
 if args.f:
-    print "Re-scraping all games.."
+    print "Re-scraping all games."
+if args.l:
+    if not args.minscore:
+        args.minscore = DEFAULT_SCORE
+    print "I'm feeling lucky enabled. Minimum score of %s." % args.minscore
 if args.v:
     print "Verbose mode enabled."
 if args.p:
