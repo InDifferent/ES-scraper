@@ -234,7 +234,7 @@ def getGameInfo(file, platforms, gamelists):
             results = gamelists[i].findall('Game')
 
         # Search for matching title options
-        if len(results) > 1:
+        if len(results) > 0:
             options.extend(getTitleOptions(title, results))
 
 
