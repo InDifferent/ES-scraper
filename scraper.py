@@ -33,6 +33,7 @@ parser.add_argument("-name", help="manually specify a name, ignore es_settings.c
 parser.add_argument("-rompath", help="manually specify a path, ignore es_settings.cfg (used with -name and -platform)", type=str)
 parser.add_argument("-platform", help="manually specify a platform for ROMs in 'rompath', ignore es_settings.cfg (must be used with -name", type=str)
 parser.add_argument("-ext", help="manually specify extensions for 'rompath', ignore es_settings.cfg (used with -name and -platform)", type=str)
+parser.add_argument("-accurate", help="improve accuracy by searching for each game individually (this is a lot slower, but gives better results)", action='store_true')
 args = parser.parse_args()
 
 # URLs for retrieving from TheGamesDB API
@@ -155,10 +156,11 @@ def exportList(gamelist, gamelist_path):
 
 def getPlatformGameLists(platforms):
     gamelists = []
-    for (i, platform) in enumerate(platforms):
-        gamelist = urllib2.Request(GAMESLIST_URL, urllib.urlencode({'platform' : platform}),
-                               headers={'User-Agent' : "RetroPie Scraper Browser"})
-        gamelists.append(ET.parse(urllib2.urlopen(gamelist)).getroot())
+    if not args.accurate:
+        for (i, platform) in enumerate(platforms):
+            gamelist = urllib2.Request(GAMESLIST_URL, urllib.urlencode({'platform' : platform}),
+                                headers={'User-Agent' : "RetroPie Scraper Browser"})
+            gamelists.append(ET.parse(urllib2.urlopen(gamelist)).getroot())
     return gamelists
 
 def getGameInfo(file, platforms, gamelists):
@@ -175,6 +177,11 @@ def getGameInfo(file, platforms, gamelists):
                                headers={'User-Agent' : "RetroPie Scraper Browser"})
         platformgamelist = ET.parse(urllib2.urlopen(gamelist)).getroot()
         return getTitleOptions(title, platformgamelist.findall('Game'))
+
+    def getPlatformTitles(platform, title):
+        gamelist = urllib2.Request(GAMESLIST_URL, urllib.urlencode({'platform' : platform, 'name' : title}),
+                               headers={'User-Agent' : "RetroPie Scraper Browser"})
+        return ET.parse(urllib2.urlopen(gamelist)).getroot()
         
     def getTitleOptions(title, results):
         options = []
@@ -221,8 +228,12 @@ def getGameInfo(file, platforms, gamelists):
 
     for (i, platform) in enumerate(platforms):
         # Retrieve full game data using ID
-        if platform == "Arcade" : title = getRealArcadeTitle(title)    
-        results = gamelists[i].findall('Game')
+        if platform == "Arcade" : title = getRealArcadeTitle(title)
+        
+        if args.accurate:
+            results = getPlatformTitles(platform, title).findall('Game')
+        else:
+            results = gamelists[i].findall('Game')
 
         # Search for matching title options
         if len(results) > 1:
