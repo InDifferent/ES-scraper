@@ -17,8 +17,10 @@ optional arguments:
   -v          verbose output
   -f          force re-scraping (ignores and overwrites the current gamelist)
   -p          partial scraping (per console)
-  -l          i'm feeling lucky (use first result if the score is greater than 1)
-  -name       the "name" from es_settings.cfg - this sets the path for the gamelsit
+  -l          i'm feeling lucky (use first result if the score is greater than minscore)
+  -minscore   defines the minimum score used by -l
+              - defaults to 1
+  -name       the "name" from es_settings.cfg - this sets the path for the gamelist
               - must be used with platform option
               (ex: mame)
   -platform   Platform Name from http://www.emulationstation.org/gettingstarted.html 
@@ -27,9 +29,11 @@ optional arguments:
   -rompath    optional path to ROMs - if not supplied, rompath is build from name option
               - used with name and platform arguments
               (ex: ~/RetroPie/roms/mame)
-  -ext        option extension list for ROMs - if not supplied, all files are matched
+  -ext        optional extension list for ROMs - if not supplied, all files are matched
               - used with name and platform arguments
               (ex: ".zip .ZIP")
+  -accurate   improve accuracy by searching for each game individually
+              - this is a lot slower, but gives better results
 ```
 
 Quick script written in Python that uses various online sources to scrape artwork and game info and saves it as XML files to be read by EmulationStation.
@@ -49,6 +53,11 @@ Examples:
 on RetroPie, this is the easiest, fastest way to run the script
 ```
 $ python scraper.py -pisize -l
+```
+
+same as above, but the script will only use the first result if it is a perfect match
+```
+$ python scraper.py -pisize -l -minscore 100
 ```
 
 same as above, but the script will prompt each ROM

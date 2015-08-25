@@ -15,6 +15,7 @@ from xml.etree import ElementTree as ET
 from xml.etree.ElementTree import Element, SubElement
 import zlib
 import glob
+import time
 
 SCUMMVM = False
 arcaderoms = {}
@@ -28,10 +29,12 @@ parser.add_argument("-v", help="verbose output", action='store_true')
 parser.add_argument("-f", help="force re-scraping (ignores and overwrites the current gamelist)", action='store_true')
 parser.add_argument("-p", help="partial scraping (per console)", action='store_true')
 parser.add_argument("-l", help="i'm feeling lucky (use first result)", action='store_true')
+parser.add_argument("-minscore", metavar="score", help="defines the minimum score used by -l (defaults to 1)", type=int)
 parser.add_argument("-name", help="manually specify a name, ignore es_settings.cfg (must be used with -platform)", type=str)
 parser.add_argument("-rompath", help="manually specify a path, ignore es_settings.cfg (used with -name and -platform)", type=str)
 parser.add_argument("-platform", help="manually specify a platform for ROMs in 'rompath', ignore es_settings.cfg (must be used with -name", type=str)
 parser.add_argument("-ext", help="manually specify extensions for 'rompath', ignore es_settings.cfg (used with -name and -platform)", type=str)
+parser.add_argument("-accurate", help="improve accuracy by searching for each game individually (this is a lot slower, but gives better results)", action='store_true')
 args = parser.parse_args()
 
 # URLs for retrieving from TheGamesDB API
@@ -42,6 +45,7 @@ GAMESLIST_URL = GAMESDB_BASE + "GetGamesList.php"
 
 DEFAULT_WIDTH  = 375
 DEFAULT_HEIGHT = 350
+DEFAULT_SCORE  = 1
 
 gamesdb_platforms = {}
 
@@ -154,10 +158,11 @@ def exportList(gamelist, gamelist_path):
 
 def getPlatformGameLists(platforms):
     gamelists = []
-    for (i, platform) in enumerate(platforms):
-        gamelist = urllib2.Request(GAMESLIST_URL, urllib.urlencode({'platform' : platform}),
-                               headers={'User-Agent' : "RetroPie Scraper Browser"})
-        gamelists.append(ET.parse(urllib2.urlopen(gamelist)).getroot())
+    if not args.accurate:
+        for (i, platform) in enumerate(platforms):
+            gamelist = urllib2.Request(GAMESLIST_URL, urllib.urlencode({'platform' : platform}),
+                                headers={'User-Agent' : "RetroPie Scraper Browser"})
+            gamelists.append(ET.parse(urllib2.urlopen(gamelist)).getroot())
     return gamelists
 
 def getGameInfo(file, platforms, gamelists):
@@ -174,42 +179,43 @@ def getGameInfo(file, platforms, gamelists):
                                headers={'User-Agent' : "RetroPie Scraper Browser"})
         platformgamelist = ET.parse(urllib2.urlopen(gamelist)).getroot()
         return getTitleOptions(title, platformgamelist.findall('Game'))
+
+    def getPlatformTitles(platform, title):
+        gamelist = urllib2.Request(GAMESLIST_URL, urllib.urlencode({'platform' : platform, 'name' : title}),
+                               headers={'User-Agent' : "RetroPie Scraper Browser"})
+        return ET.parse(urllib2.urlopen(gamelist)).getroot()
+        
+    def cleanString(title):
+        cleanTitle = re.sub('[^a-zA-Z0-9 ]', '', title)
+        return re.sub(' +', ' ', cleanTitle)
         
     def getTitleOptions(title, results):
         options = []
-        ch_exclude = set(',:&!')
-        common_words = ['in','of','the','and','to','a','-']
+        common_words = ['in','of','the','and','to','a']
 
-        scrubbed_title = stripRegionStrings(title)
-        scrubbed_title = ''.join(ch for ch in scrubbed_title if ch not in ch_exclude)
-
+        scrubbed_title = cleanString(stripRegionStrings(title))
         word_list = filter(lambda x: x.lower() not in common_words, scrubbed_title.split() )
 
         for i,v in enumerate(results):
-            check_title = getTitle(v)
-            check_title_2 = check_title.replace('-', ' ')
-            scrubbed_check = ''.join(ch for ch in check_title if ch not in ch_exclude)
-
-            check_word_list = filter(lambda x: x.lower() not in common_words \
-                                        and len(x) > 2, scrubbed_check.split() )
+            check_title = cleanString(getTitle(v))
+            check_word_list = filter(lambda x: x.lower() not in common_words, check_title.split() )
 
             # Generate rank based on how many substring matches occurred.
             game_rank = 0
 
             # - Give perfect (100) rank to titles that match exactly
-            if title.lower() == check_title.lower() \
-                    or title.lower() == check_title.replace('-', '').lower() \
-                    or title.lower() == check_title_2.lower():
+            if scrubbed_title.lower() == check_title.lower():
                 game_rank = 100
             # - Give high (99) rank to title if same words appear in result
             #   (e.g.  "The Legend of Zelda" --> "Legend of Zelda, The"
             elif sorted(word_list) == sorted(check_word_list):
                 game_rank = 99
             # - Give high (95) rank to titles that appear entirely in results
-            elif title.lower() in check_title.lower() \
-                    or title.lower() in check_title.replace('-', '').lower() \
-                    or title.lower() in check_title_2.lower():
+            elif scrubbed_title.lower() in check_title.lower():
                 game_rank = 95
+            # - Give high (90) rank to results that appear entirely in titles
+            elif check_title.lower() in scrubbed_title.lower():
+                game_rank = 90                
             # - Otherwise, rank title by number of occurrences of words
             else:
                 #print "%s" % '|'.join(word_list)
@@ -220,11 +226,15 @@ def getGameInfo(file, platforms, gamelists):
 
     for (i, platform) in enumerate(platforms):
         # Retrieve full game data using ID
-        if platform == "Arcade" : title = getRealArcadeTitle(title)	
-        results = gamelists[i].findall('Game')
+        if platform == "Arcade" : title = getRealArcadeTitle(title)
+        
+        if args.accurate:
+            results = getPlatformTitles(platform, title).findall('Game')
+        else:
+            results = gamelists[i].findall('Game')
 
         # Search for matching title options
-        if len(results) > 1:
+        if len(results) > 0:
             options.extend(getTitleOptions(title, results))
 
 
@@ -235,9 +245,10 @@ def getGameInfo(file, platforms, gamelists):
         # * I'm feeling lucky - select first result
         if args.l:
             if not options:     # If no options available, return None
+                print "no matches found"
                 return None
-            if options[0][0] == 1:
-                print "match not high enough"
+            if options[0][0] < args.minscore:
+                print "best score (%s) is below the minmium (%s)" % (options[0][0], args.minscore)
                 return None
             else:
                 result = options[0]
@@ -322,8 +333,17 @@ def getImage(nodes):
     return getText(nodes.find("Images/boxart[@side='front']"))
 
 def getRelDate(nodes):
-    return getText(nodes.find("ReleaseDate"))
-
+    rd = getText(nodes.find("ReleaseDate"))
+    if rd is not None:
+        if len(rd) == 10:
+            return time.strftime('%Y%m%dT%H%M%S', time.strptime(rd, '%m/%d/%Y'))
+        elif len(d) == 4:
+            return time.strftime('%Y%m%dT%H%M%S', time.strptime('01/01/' + rd, '%m/%d/%Y'))
+        else:
+            return None
+    else:
+        return None    
+    
 def getPublisher(nodes):
     return getText(nodes.find("Publisher"))
 
@@ -432,8 +452,9 @@ def autoChooseBestResult(nodes,t):
 
 def getPlatformNames(_platforms):
     platforms = []
-    for (i, platform) in enumerate(_platforms.split(',')):
-        if gamesdb_platforms.get(platform, None) is not None: platforms.append(gamesdb_platforms[platform])
+    if _platforms:
+        for (i, platform) in enumerate(_platforms.split(',')):
+            if gamesdb_platforms.get(platform, None) is not None: platforms.append(gamesdb_platforms[platform])
     return platforms
 
 
@@ -498,37 +519,28 @@ def scanFiles(SystemInfo):
                     else:
                         result = data
 
-                    str_id = getId(result)
                     str_title = getTitle(result)
                     str_des = getDescription(result)
                     str_img = getImage(result)
+                    str_rating = getRating(result)
                     str_rd = getRelDate(result)
-                    str_pub = getPublisher(result)
                     str_dev = getDeveloper(result)
+                    str_pub = getPublisher(result)
                     str_rating = getRating(result)
                     str_players = getPlayers(result)
                     lst_genres = getGenres(result)
 
                     if str_title is not None:
                         game = SubElement(gamelist, 'game')
-                        id = SubElement(game, 'id')
                         path = SubElement(game, 'path')
                         name = SubElement(game, 'name')
-                        desc = SubElement(game, 'desc')
-                        image = SubElement(game, 'image')
-                        releasedate = SubElement(game, 'releasedate')
-                        publisher = SubElement(game, 'publisher')
-                        developer = SubElement(game, 'developer')
-                        rating = SubElement(game, 'rating')
-                        players = SubElement(game, 'players')
-                        genres = SubElement(game, 'genres')
 
-                        id.text = str_id
                         path.text = filepath
                         name.text = str_title
                         print "Game Found: %s [%s]" % (str_title, getGamePlatform(result))
 
                     if str_des is not None:
+                        desc = SubElement(game, 'desc')                    
                         desc.text = str_des
 
                     if str_img is not None and args.noimg is False:
@@ -543,7 +555,6 @@ def scanFiles(SystemInfo):
 
                         downloadBoxart(str_img,imgpath)
                         imgpath = fixExtension(imgpath)
-                        image.text = imgpath
 
                         if args.w or args.t:
                             try:
@@ -551,29 +562,37 @@ def scanFiles(SystemInfo):
                             except Exception as e:
                                 print "Image resize error"
                                 print str(e)
-
+                        
+                        image = SubElement(game, 'image')                        
+                        image.text = imgpath
+                        
                     if str_rd is not None:
+                        releasedate = SubElement(game, 'releasedate')                    
                         releasedate.text = str_rd
 
+                    if str_dev is not None:
+                        developer = SubElement(game, 'developer')                    
+                        developer.text = str_dev
+                        
                     if str_pub is not None:
+                        publisher = SubElement(game, 'publisher')                    
                         publisher.text = str_pub
 
-                    if str_dev is not None:
-                        developer.text = str_dev
-
+                    rating = SubElement(game, 'rating')
                     if str_rating is not None:
-                        flt_rating = float(str_rating)
-                        rating.text = "%.6f" % flt_rating
+                        flt_rating = float(str_rating) / 10
+                        rating.text = "%.2f" % flt_rating
                     else:
-                        rating.text = "0.000000"
+                        rating.text = "0.0"
 
                     if str_players is not None:
+                        players = SubElement(game, 'players')
                         players.text = str_players
 
                     if lst_genres is not None:
-                        for genre in lst_genres:
-                            newgenre = SubElement(genres, 'genre')
-                            newgenre.text = genre.strip()
+                        genre = SubElement(game, 'genre')                    
+                        genre.text = lst_genres[0].strip()
+
                 except KeyboardInterrupt:
                     print "Ctrl+C detected. Closing work now..."
                     break
@@ -648,7 +667,11 @@ else:
 if args.noimg:
     print "Boxart downloading disabled."
 if args.f:
-    print "Re-scraping all games.."
+    print "Re-scraping all games."
+if args.l:
+    if not args.minscore:
+        args.minscore = DEFAULT_SCORE
+    print "I'm feeling lucky enabled. Minimum score of %s." % args.minscore
 if args.v:
     print "Verbose mode enabled."
 if args.p:
