@@ -27,7 +27,8 @@ parser.add_argument("-pisize", help="use best Raspberry Pi dimensions (375 x 350
 parser.add_argument("-noimg", help="disables boxart downloading", action='store_true')
 parser.add_argument("-v", help="verbose output", action='store_true')
 parser.add_argument("-f", help="force re-scraping (ignores and overwrites the current gamelist)", action='store_true')
-parser.add_argument("-p", help="partial scraping (per console)", action='store_true')
+parser.add_argument("-p", help="partial scraping (per system)", action='store_true')
+parser.add_argument("-P", help="partial scraping (multiple systems)", nargs='+')
 parser.add_argument("-l", help="i'm feeling lucky (use first result)", action='store_true')
 parser.add_argument("-minscore", metavar="score", help="defines the minimum score used by -l (defaults to 1)", type=int)
 parser.add_argument("-name", help="manually specify a name, ignore es_settings.cfg (must be used with -platform)", type=str)
@@ -166,7 +167,7 @@ def getPlatformGameLists(platforms):
     return gamelists
 
 def getGameInfo(file, platforms, gamelists):
-    title = re.sub(r'\[.*?\]|\(.*?\)', '', os.path.splitext(os.path.basename(file))[0]).strip()
+    title = re.sub(r'\[.*?\]|\(.*?\)', '', os.path.splitext(os.path.basename(file))[0]).replace('_',' ').strip()
     options = []
 
     def stripRegionStrings(title):
@@ -248,7 +249,7 @@ def getGameInfo(file, platforms, gamelists):
                 print "no matches found"
                 return None
             if options[0][0] < args.minscore:
-                print "best score (%s) is below the minmium (%s)" % (options[0][0], args.minscore)
+                print "best score (%s): %s" % (options[0][0], options[0][1])
                 return None
             else:
                 result = options[0]
@@ -337,7 +338,7 @@ def getRelDate(nodes):
     if rd is not None:
         if len(rd) == 10:
             return time.strftime('%Y%m%dT%H%M%S', time.strptime(rd, '%m/%d/%Y'))
-        elif len(d) == 4:
+        elif len(rd) == 4:
             return time.strftime('%Y%m%dT%H%M%S', time.strptime('01/01/' + rd, '%m/%d/%Y'))
         else:
             return None
@@ -648,6 +649,8 @@ else:
 
 
 
+scan_systems=[]
+scan_systems_names=[]
 
 getPlatforms()
 getArcadeRomNames()
@@ -680,12 +683,29 @@ if args.p:
         print "[%s] %s" % (i,v[0])
     try:
         var = int(raw_input("System ID: "))
-        scanFiles(ES_systems[var])
+        scan_systems.append(var)
     except:
         sys.exit()
+elif args.P:
+    print "Partial scraping enabled."
+    for i,v in enumerate(args.P):
+        try: # if the argument was an integer
+            scan_systems.append(int(v))
+            scan_systems_names.append(ES_systems[int(v)][0])
+        except:
+            # search system by name
+            for key,val in enumerate(ES_systems):
+                if (v==val[0]):
+                    scan_systems.append(key)
+                    scan_systems_names.append(val[0])
+    print "Scanning systems: %s" % (', '.join(scan_systems_names))
+	
 else:
-    for i,v in enumerate(ES_systems):
-        scanFiles(ES_systems[i])
+    scan_systems = ES_systems;
+    print "Scanning all systems."
+
+for i,v in enumerate(scan_systems):
+	scanFiles(ES_systems[v])
 
 print "All done!"
 
