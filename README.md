@@ -16,7 +16,8 @@ optional arguments:
   -noimg      disables boxart downloading
   -v          verbose output
   -f          force re-scraping (ignores and overwrites the current gamelist)
-  -p          partial scraping (per console)
+  -p          partial scraping (per system)
+  -P          partial scraping (multiple systems)
   -l          i'm feeling lucky (use first result if the score is greater than minscore)
   -minscore   defines the minimum score used by -l
               - defaults to 1
@@ -63,6 +64,11 @@ $ python scraper.py -pisize -l -minscore 100
 same as above, but the script will prompt each ROM
 ```
 $ python scraper.py -pisize
+```
+
+same as above, but only for specified systems (name or index)
+```
+$ python scraper.py -pisize  -P n64 3 ports
 ```
 
 same as above, but the script will prompt for a single platform
