@@ -705,7 +705,7 @@ else:
     print "Scanning all systems."
 
 for i,v in enumerate(scan_systems):
-	scanFiles(ES_systems[v])
+    scanFiles(v)
 
 print "All done!"
 
