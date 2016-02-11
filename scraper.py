@@ -39,8 +39,11 @@ parser.add_argument("-accurate", help="improve accuracy by searching for each ga
 args = parser.parse_args()
 
 # URLs for retrieving from TheGamesDB API
+# http://wiki.thegamesdb.net/index.php/API_Introduction
 GAMESDB_BASE  = "http://thegamesdb.net/api/"
 PLATFORM_URL  = GAMESDB_BASE + "GetPlatform.php"
+PLATFORMLIST_URL  = GAMESDB_BASE + "GetPlatformsList.php"
+PLATFORMGAMESLIST_URL  = GAMESDB_BASE + "GetPlatformGames.php"
 GAMEINFO_URL  = GAMESDB_BASE + "GetGame.php"
 GAMESLIST_URL = GAMESDB_BASE + "GetGamesList.php"
 
@@ -159,11 +162,31 @@ def exportList(gamelist, gamelist_path):
 
 def getPlatformGameLists(platforms):
     gamelists = []
+    platformid = ""
     if not args.accurate:
         for (i, platform) in enumerate(platforms):
-            gamelist = urllib2.Request(GAMESLIST_URL, urllib.urlencode({'platform' : platform}),
+            print " "
+            #print "getPlatformGameLists"
+            #print "platform (%s)" % (platform)
+
+            #get platform ID then use that to get the list of games for each platform
+            request = urllib2.Request(PLATFORMLIST_URL, urllib.urlencode({'platform' : platform}),
+                                headers={'User-Agent' : "RetroPie Scraper Browser"})
+            platformlist = ET.parse(urllib2.urlopen(request)).getroot()
+            for elem in platformlist.iter():
+                platformid = getText(elem.find('id'))
+                name = getText(elem.find('name'))
+                if name is not None:
+                    if name == platform:
+                        print "platform (%s) id: (%s)" % (name, platformid)
+                        break;
+            
+            # Original code
+            gamelist = urllib2.Request(PLATFORMGAMESLIST_URL, urllib.urlencode({'platform' : platformid}),
                                 headers={'User-Agent' : "RetroPie Scraper Browser"})
             gamelists.append(ET.parse(urllib2.urlopen(gamelist)).getroot())
+            
+        print " "
     return gamelists
 
 def getGameInfo(file, platforms, gamelists):
@@ -182,6 +205,8 @@ def getGameInfo(file, platforms, gamelists):
         return getTitleOptions(title, platformgamelist.findall('Game'))
 
     def getPlatformTitles(platform, title):
+        print "getPlatformTitles"
+        print "(%s) : %s" % (platform, title)
         gamelist = urllib2.Request(GAMESLIST_URL, urllib.urlencode({'platform' : platform, 'name' : title}),
                                headers={'User-Agent' : "RetroPie Scraper Browser"})
         return ET.parse(urllib2.urlopen(gamelist)).getroot()
@@ -196,11 +221,15 @@ def getGameInfo(file, platforms, gamelists):
 
         scrubbed_title = cleanString(stripRegionStrings(title))
         word_list = filter(lambda x: x.lower() not in common_words, scrubbed_title.split() )
+        #print scrubbed_title.split()
 
         for i,v in enumerate(results):
             check_title = cleanString(getTitle(v))
             check_word_list = filter(lambda x: x.lower() not in common_words, check_title.split() )
-
+            #print "=="
+            #print check_title
+            #print check_word_list
+            
             # Generate rank based on how many substring matches occurred.
             game_rank = 0
 
@@ -229,6 +258,8 @@ def getGameInfo(file, platforms, gamelists):
         # Retrieve full game data using ID
         if platform == "Arcade" : title = getRealArcadeTitle(title)
         
+        print "Searching: [" + title + "] on " + platform
+            
         if args.accurate:
             results = getPlatformTitles(platform, title).findall('Game')
         else:
@@ -392,9 +423,8 @@ def chooseResult(options):
         for i, v in enumerate(options):
             rank  = v[0]
             title = v[1]
-            platform = v[2]
             try:
-                print " [%s] %s [%s]  (+%s)" % (i, title, platform, rank)
+                print " [%s] %s  (+%s)" % (i, title, rank)
             except Exception as e:
                 print "Exception! %s %s" % (e, title)
             count += 1
@@ -705,7 +735,7 @@ else:
     print "Scanning all systems."
 
 for i,v in enumerate(scan_systems):
-    scanFiles(v)
+	scanFiles(ES_systems[v])
 
 print "All done!"
 
