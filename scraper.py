@@ -713,7 +713,7 @@ if args.p:
         print "[%s] %s" % (i,v[0])
     try:
         var = int(raw_input("System ID: "))
-        scan_systems.append(var)
+        scan_systems.append(ES_systems[var])
     except:
         sys.exit()
 elif args.P:
